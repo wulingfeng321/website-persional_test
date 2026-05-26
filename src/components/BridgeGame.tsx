@@ -130,24 +130,53 @@ function CardButton({
 
   return (
     <motion.button
-      whileHover={!disabled ? { y: -8, scale: 1.05 } : undefined}
+      whileHover={!disabled ? { y: -6, scale: 1.05 } : undefined}
       whileTap={!disabled ? { scale: 0.95 } : undefined}
       onClick={onClick}
       disabled={disabled}
-      className={`card ${isRed ? "red" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${
-        highlight ? "ring-2 ring-primary shadow-lg shadow-primary/30" : ""
-      }`}
+      style={{
+        width: "44px",
+        height: "60px",
+        borderRadius: "6px",
+        border: `1px solid ${highlight ? "#00d4ff" : "rgba(100,100,100,0.4)"}`,
+        background: disabled ? "rgba(30,30,30,0.5)" : "rgba(20,20,30,0.9)",
+        color: isRed ? "#ff6b6b" : "#e0e0e0",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "12px",
+        fontFamily: "monospace",
+        boxShadow: highlight ? "0 0 10px rgba(0,212,255,0.3)" : "none",
+        transition: "all 0.2s",
+        padding: "2px",
+      }}
     >
-      <span className="rank">{card.rank}</span>
-      <span className="suit">{card.suit}</span>
+      <span style={{ fontSize: "14px", fontWeight: "bold" }}>{card.rank}</span>
+      <span style={{ fontSize: "16px" }}>{card.suit}</span>
     </motion.button>
   );
 }
 
-function CardBack() {
+function CardBack({ small }: { small?: boolean }) {
+  const size = small ? { width: "32px", height: "44px" } : { width: "36px", height: "50px" };
   return (
-    <div className="card back">
-      <span className="text-xs text-cyan-900">?</span>
+    <div
+      style={{
+        ...size,
+        borderRadius: "4px",
+        border: "1px solid rgba(0,212,255,0.2)",
+        background: "linear-gradient(135deg, rgba(0,20,40,0.9), rgba(0,10,20,0.9))",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "10px",
+        color: "rgba(0,212,255,0.3)",
+      }}
+    >
+      ?
     </div>
   );
 }
@@ -166,7 +195,6 @@ export default function BridgeGame() {
   const startNewGame = useCallback(() => {
     clearAutoTimer();
     const newGame = createGame();
-    // AI 先手：如果 North 是先手，自动出牌到 South 之前
     const order = getTurnOrder(newGame.leader);
     const southIdx = order.indexOf("South");
     for (let i = 0; i < southIdx; i++) {
@@ -182,7 +210,6 @@ export default function BridgeGame() {
     setGame((prev) => {
       if (!prev || prev.finished || !prev.waitingForNextTrick) return prev;
       const nextGame = { ...prev, waitingForNextTrick: false, completedTrick: [] as TrickPlay[] };
-      // AI 先手自动出牌到 South
       const order = getTurnOrder(nextGame.leader);
       const southIdx = order.indexOf("South");
       for (let i = 0; i < southIdx; i++) {
@@ -220,11 +247,9 @@ export default function BridgeGame() {
           return { ...g };
         }
 
-        // 出牌
         g.hands.South = g.hands.South.filter((c) => c.id !== cardId);
         g.currentTrick.push({ player: "South", card });
 
-        // AI 自动出完剩余
         const order = getTurnOrder(g.leader);
         const southIdx = order.indexOf("South");
         for (let i = southIdx + 1; i < 4; i++) {
@@ -234,7 +259,6 @@ export default function BridgeGame() {
           g.currentTrick.push({ player, card: aiCard });
         }
 
-        // 一墩完成
         if (g.currentTrick.length === 4) {
           g.completedTrick = [...g.currentTrick];
           const winner = determineTrickWinner(g.currentTrick);
@@ -263,7 +287,6 @@ export default function BridgeGame() {
     []
   );
 
-  // 自动进入下一墩
   useEffect(() => {
     if (game?.waitingForNextTrick && !game.finished) {
       const timer = setTimeout(advanceToNextTrick, 1200);
@@ -272,7 +295,6 @@ export default function BridgeGame() {
     }
   }, [game?.waitingForNextTrick, game?.finished, advanceToNextTrick]);
 
-  // 初始自动开始
   useEffect(() => {
     startNewGame();
   }, [startNewGame]);
@@ -284,70 +306,125 @@ export default function BridgeGame() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* 控制区 */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <button onClick={startNewGame} className="btn-cyber">
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {/* 顶部信息栏 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "10px 16px",
+          background: "rgba(20,20,30,0.8)",
+          borderRadius: "8px",
+          border: "1px solid rgba(0,212,255,0.15)",
+        }}
+      >
+        <button
+          onClick={startNewGame}
+          style={{
+            padding: "6px 16px",
+            background: "rgba(0,212,255,0.15)",
+            border: "1px solid rgba(0,212,255,0.4)",
+            borderRadius: "6px",
+            color: "#00d4ff",
+            cursor: "pointer",
+            fontFamily: "monospace",
+            fontSize: "13px",
+          }}
+        >
           新局
         </button>
-        <div className="flex gap-4 font-mono text-sm ml-4">
-          <span className="text-cyan-400">
-            南北: <strong className="text-white">{game.scores.NS}</strong>
+        <div style={{ display: "flex", gap: "20px", fontFamily: "monospace", fontSize: "13px" }}>
+          <span style={{ color: "#4dc9f6" }}>
+            南北: <strong style={{ color: "#fff" }}>{game.scores.NS}</strong>
           </span>
-          <span className="text-orange-400">
-            东西: <strong className="text-white">{game.scores.EW}</strong>
+          <span style={{ color: "#f67019" }}>
+            东西: <strong style={{ color: "#fff" }}>{game.scores.EW}</strong>
           </span>
-          <span className="text-slate-500">
-            第 <strong className="text-white">{game.trickNumber}</strong> 墩
+          <span style={{ color: "#666" }}>
+            第 <strong style={{ color: "#fff" }}>{game.trickNumber}</strong> 墩
           </span>
         </div>
       </div>
 
       {/* 牌桌 */}
-      <div className="card-cyber p-6">
-        <div className="grid grid-cols-3 gap-4 min-h-[400px]">
-          {/* 北家 */}
-          <div className="col-span-3 flex flex-col items-center">
-            <p className="font-mono text-xs text-slate-500 mb-2 uppercase tracking-wider">
-              North (AI)
+      <div
+        style={{
+          background: "rgba(15,15,25,0.9)",
+          borderRadius: "10px",
+          border: "1px solid rgba(0,212,255,0.15)",
+          padding: "16px",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 2fr 1fr",
+            gridTemplateRows: "auto auto auto",
+            gap: "12px",
+            alignItems: "center",
+          }}
+        >
+          {/* 北家 - 顶部居中 */}
+          <div style={{ gridColumn: "1 / -1", textAlign: "center" }}>
+            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "1px" }}>
+              North (AI) · {game.hands.North.length}张
             </p>
-            <div className="flex gap-1 justify-center flex-wrap">
+            <div style={{ display: "flex", gap: "3px", justifyContent: "center", flexWrap: "wrap" }}>
               {game.hands.North.map((card) => (
-                <CardBack key={card.id} />
+                <CardBack key={card.id} small />
               ))}
             </div>
           </div>
 
-          {/* 西家 */}
-          <div className="flex flex-col items-center justify-center">
-            <p className="font-mono text-xs text-slate-500 mb-2 uppercase tracking-wider">
-              West (AI)
+          {/* 西家 - 左侧 */}
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "1px" }}>
+              West (AI) · {game.hands.West.length}张
             </p>
-            <div className="flex flex-col gap-1 items-center">
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
               {game.hands.West.map((card) => (
-                <CardBack key={card.id} />
+                <CardBack key={card.id} small />
               ))}
             </div>
           </div>
 
           {/* 中央 - 当前墩 */}
-          <div className="flex flex-col items-center justify-center">
-            <p className="font-mono text-xs text-slate-500 mb-3 uppercase tracking-wider">
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "#666", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>
               当前墩
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "6px",
+                maxWidth: "200px",
+                margin: "0 auto",
+              }}
+            >
               {(["North", "East", "South", "West"] as Player[]).map((seat) => {
                 const play = game.currentTrick.find((p) => p.player === seat) ||
                   game.completedTrick.find((p) => p.player === seat);
+                const isRed = play && (play.card.suit === "♥" || play.card.suit === "♦");
                 return (
-                  <div key={seat} className="trick-item text-center">
-                    <strong>{seat}</strong>
+                  <div
+                    key={seat}
+                    style={{
+                      padding: "6px 8px",
+                      background: "rgba(30,30,40,0.6)",
+                      borderRadius: "6px",
+                      border: play ? "1px solid rgba(0,212,255,0.3)" : "1px solid rgba(50,50,50,0.4)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <div style={{ fontFamily: "monospace", fontSize: "10px", color: "#555", marginBottom: "2px" }}>{seat}</div>
                     {play ? (
-                      <span className={play.card.suit === "♥" || play.card.suit === "♦" ? "text-red-400" : "text-white"}>
+                      <span style={{ color: isRed ? "#ff6b6b" : "#e0e0e0", fontFamily: "monospace", fontWeight: "bold" }}>
                         {play.card.label}
                       </span>
                     ) : (
-                      <span className="text-slate-600">等待</span>
+                      <span style={{ color: "#333", fontSize: "11px" }}>等待</span>
                     )}
                   </div>
                 );
@@ -355,24 +432,24 @@ export default function BridgeGame() {
             </div>
           </div>
 
-          {/* 东家 */}
-          <div className="flex flex-col items-center justify-center">
-            <p className="font-mono text-xs text-slate-500 mb-2 uppercase tracking-wider">
-              East (AI)
+          {/* 东家 - 右侧 */}
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "1px" }}>
+              East (AI) · {game.hands.East.length}张
             </p>
-            <div className="flex flex-col gap-1 items-center">
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
               {game.hands.East.map((card) => (
-                <CardBack key={card.id} />
+                <CardBack key={card.id} small />
               ))}
             </div>
           </div>
 
-          {/* 南家 - 玩家 */}
-          <div className="col-span-3 flex flex-col items-center mt-4">
-            <p className="font-mono text-xs text-primary mb-2 uppercase tracking-wider">
-              South (你)
+          {/* 南家 - 底部居中 */}
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", marginTop: "8px" }}>
+            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "#00d4ff", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}>
+              South (你) · {game.hands.South.length}张
             </p>
-            <div className="flex gap-1 justify-center flex-wrap">
+            <div style={{ display: "flex", gap: "4px", justifyContent: "center", flexWrap: "wrap" }}>
               {game.hands.South.map((card) => (
                 <CardButton
                   key={card.id}
@@ -391,14 +468,19 @@ export default function BridgeGame() {
       <AnimatePresence mode="wait">
         <motion.div
           key={game.message}
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className={`text-center font-mono text-sm p-3 rounded-lg ${
-            game.finished
-              ? "bg-primary/10 border border-primary/20 text-primary"
-              : "bg-white/5 border border-white/5 text-slate-400"
-          }`}
+          style={{
+            textAlign: "center",
+            fontFamily: "monospace",
+            fontSize: "13px",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            background: game.finished ? "rgba(0,212,255,0.08)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${game.finished ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.05)"}`,
+            color: game.finished ? "#00d4ff" : "#888",
+          }}
         >
           {game.message}
         </motion.div>

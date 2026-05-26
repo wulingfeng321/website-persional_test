@@ -10,6 +10,9 @@ export interface PCDData {
   count: number;
 }
 
+// 加载进度回调类型
+export type ProgressCallback = (loaded: number, total: number) => void;
+
 /**
  * 解析 PCD 文件头
  */
@@ -66,6 +69,9 @@ function parseASCII(lines: string[], header: ReturnType<typeof parseHeader>): PC
   const greenIdx = fields.indexOf("green");
   const blueIdx = fields.indexOf("blue");
 
+  console.log(`[PCD Parser] 字段索引: x=${xIdx}, y=${yIdx}, z=${zIdx}, rgb=${rIdx}`);
+  console.log(`[PCD Parser] 预期点数: ${points}, 数据起始行: ${headerEnd}`);
+
   const positions = new Float32Array(points * 3);
   let colors: Float32Array | null = null;
   if (rIdx !== -1 || redIdx !== -1) {
@@ -73,16 +79,29 @@ function parseASCII(lines: string[], header: ReturnType<typeof parseHeader>): PC
   }
 
   let validPoints = 0;
+  let skippedPoints = 0;
+  const dataLines = lines.length - headerEnd;
+
   for (let i = headerEnd; i < lines.length && validPoints < points; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
     const values = line.split(/\s+/);
+
+    // 确保有足够的字段
+    if (values.length < Math.max(xIdx, yIdx, zIdx) + 1) {
+      skippedPoints++;
+      continue;
+    }
+
     const px = parseFloat(values[xIdx]);
     const py = parseFloat(values[yIdx]);
     const pz = parseFloat(values[zIdx]);
 
-    if (isNaN(px) || isNaN(py) || isNaN(pz)) continue;
+    if (isNaN(px) || isNaN(py) || isNaN(pz)) {
+      skippedPoints++;
+      continue;
+    }
 
     const idx = validPoints * 3;
     positions[idx] = px;
@@ -91,7 +110,7 @@ function parseASCII(lines: string[], header: ReturnType<typeof parseHeader>): PC
 
     // 处理颜色
     if (colors) {
-      if (rIdx !== -1) {
+      if (rIdx !== -1 && rIdx < values.length) {
         // rgb 字段可能是打包的 float 或单独的值
         const rgbVal = parseFloat(values[rIdx]);
         if (rgbVal > 1) {
@@ -107,7 +126,7 @@ function parseASCII(lines: string[], header: ReturnType<typeof parseHeader>): PC
           colors[idx + 1] = parseFloat(values[rIdx + 1] || "0");
           colors[idx + 2] = parseFloat(values[rIdx + 2] || "0");
         }
-      } else if (redIdx !== -1) {
+      } else if (redIdx !== -1 && redIdx < values.length) {
         colors[idx] = parseFloat(values[redIdx]) / 255;
         colors[idx + 1] = parseFloat(values[greenIdx]) / 255;
         colors[idx + 2] = parseFloat(values[blueIdx]) / 255;
@@ -115,7 +134,14 @@ function parseASCII(lines: string[], header: ReturnType<typeof parseHeader>): PC
     }
 
     validPoints++;
+
+    // 每 100000 点输出一次进度
+    if (validPoints % 100000 === 0) {
+      console.log(`[PCD Parser] 已解析 ${validPoints} / ${points} 点`);
+    }
   }
+
+  console.log(`[PCD Parser] 解析完成: 有效点=${validPoints}, 跳过点=${skippedPoints}, 数据行=${dataLines}`);
 
   return {
     positions: positions.slice(0, validPoints * 3),
@@ -184,25 +210,75 @@ function parseBinary(buffer: ArrayBuffer, header: ReturnType<typeof parseHeader>
 /**
  * 加载并解析 PCD 文件
  * @param url PCD 文件路径（相对于 public 目录）
+ * @param onProgress 加载进度回调
  */
-export async function loadPCD(url: string): Promise<PCDData> {
+export async function loadPCD(url: string, onProgress?: ProgressCallback): Promise<PCDData> {
+  console.log(`[PCD Loader] 开始加载: ${url}`);
+
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to load PCD file: ${response.statusText}`);
+    throw new Error(`Failed to load PCD file: ${response.status} ${response.statusText}`);
   }
 
-  const buffer = await response.arrayBuffer();
+  const contentLength = response.headers.get("content-length");
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+  // 读取响应体
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Failed to get response reader");
+  }
+
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    if (onProgress && total > 0) {
+      onProgress(loaded, total);
+    }
+  }
+
+  // 合并 chunks
+  const buffer = new ArrayBuffer(loaded);
+  const uint8 = new Uint8Array(buffer);
+  let offset = 0;
+  for (const chunk of chunks) {
+    uint8.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  console.log(`[PCD Loader] 文件下载完成: ${(loaded / 1024 / 1024).toFixed(2)} MB`);
+
   const textDecoder = new TextDecoder();
-  const text = textDecoder.decode(new Uint8Array(buffer));
+  const text = textDecoder.decode(uint8);
   const lines = text.split("\n");
 
+  console.log(`[PCD Loader] 文件行数: ${lines.length}`);
+
   const header = parseHeader(lines);
+  console.log(`[PCD Loader] 头信息:`, {
+    fields: header.fields,
+    points: header.points,
+    data: header.data,
+    headerEnd: header.headerEnd,
+  });
+
+  let result: PCDData;
 
   if (header.data === "binary") {
-    return parseBinary(buffer, header);
+    console.log("[PCD Loader] 解析 binary 格式...");
+    result = parseBinary(buffer, header);
   } else {
-    return parseASCII(lines, header);
+    console.log("[PCD Loader] 解析 ascii 格式...");
+    result = parseASCII(lines, header);
   }
+
+  console.log(`[PCD Loader] 解析完成: ${result.count} 个点`);
+  return result;
 }
 
 /**
@@ -228,6 +304,12 @@ export function normalizePCDData(
     maxZ = Math.max(maxZ, positions[i3 + 2]);
   }
 
+  console.log("[PCD Normalizer] 原始包围盒:", {
+    x: [minX.toFixed(2), maxX.toFixed(2)],
+    y: [minY.toFixed(2), maxY.toFixed(2)],
+    z: [minZ.toFixed(2), maxZ.toFixed(2)],
+  });
+
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
   const cz = (minZ + maxZ) / 2;
@@ -237,6 +319,13 @@ export function normalizePCDData(
   const maxDim = Math.max(dx, dy, dz);
   const scale = maxDim > 0 ? (targetRadius * 2) / maxDim : 1;
 
+  console.log("[PCD Normalizer] 归一化参数:", {
+    center: [cx.toFixed(2), cy.toFixed(2), cz.toFixed(2)],
+    maxDim: maxDim.toFixed(2),
+    scale: scale.toFixed(4),
+    targetRadius,
+  });
+
   const normalized = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
@@ -244,6 +333,25 @@ export function normalizePCDData(
     normalized[i3 + 1] = (positions[i3 + 1] - cy) * scale;
     normalized[i3 + 2] = (positions[i3 + 2] - cz) * scale;
   }
+
+  // 验证归一化后的范围
+  let nMinX = Infinity, nMinY = Infinity, nMinZ = Infinity;
+  let nMaxX = -Infinity, nMaxY = -Infinity, nMaxZ = -Infinity;
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    nMinX = Math.min(nMinX, normalized[i3]);
+    nMinY = Math.min(nMinY, normalized[i3 + 1]);
+    nMinZ = Math.min(nMinZ, normalized[i3 + 2]);
+    nMaxX = Math.max(nMaxX, normalized[i3]);
+    nMaxY = Math.max(nMaxY, normalized[i3 + 1]);
+    nMaxZ = Math.max(nMaxZ, normalized[i3 + 2]);
+  }
+
+  console.log("[PCD Normalizer] 归一化后包围盒:", {
+    x: [nMinX.toFixed(2), nMaxX.toFixed(2)],
+    y: [nMinY.toFixed(2), nMaxY.toFixed(2)],
+    z: [nMinZ.toFixed(2), nMaxZ.toFixed(2)],
+  });
 
   return {
     ...data,

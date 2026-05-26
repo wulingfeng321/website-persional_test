@@ -21,8 +21,8 @@ export default function Home() {
           className="mb-8"
         >
           <h1 className="text-5xl md:text-7xl font-bold text-glow font-mono tracking-wider">
-            <span className="text-primary">3D</span>{" "}
-            <span className="text-white">Point Cloud</span>
+            <span className="text-primary">你好</span>{" "}
+            <span className="text-white">请坐和放宽</span>
           </h1>
           <motion.div
             initial={{ width: 0 }}
@@ -37,11 +37,11 @@ export default function Home() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="text-lg md:text-xl text-slate-400 font-mono mb-12 leading-relaxed"
+          className="text-lg md:text-xl text-slate-300 font-mono mb-12 leading-relaxed"
         >
-          漂浮在数字空间中的 3D 科幻个人终端
+          欢迎来到这个神秘网站
           <br />
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-cyan-400/80">
             {"// exploring the frontier of code & creativity"}
           </span>
         </motion.p>
@@ -53,10 +53,10 @@ export default function Home() {
           transition={{ duration: 0.6, delay: 0.9 }}
           className="flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
-          <Link href="/personal-info">
+          <Link href="/settings">
             <button className="btn-cyber group">
               <span className="relative z-10 flex items-center gap-2">
-                <span>ENTER TERMINAL</span>
+                <span>SETTINGS</span>
                 <svg
                   width="16"
                   height="16"
@@ -77,7 +77,7 @@ export default function Home() {
           </Link>
 
           <Link href="/contact">
-            <button className="px-6 py-3 text-sm font-mono text-slate-500 hover:text-primary transition-colors duration-200">
+            <button className="px-6 py-3 text-sm font-mono text-slate-400 hover:text-primary transition-colors duration-200">
               CONTACT →
             </button>
           </Link>
@@ -88,17 +88,17 @@ export default function Home() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 1.2 }}
-          className="mt-16 font-mono text-xs text-slate-600 space-y-1"
+          className="mt-16 font-mono text-xs text-slate-400 space-y-1"
         >
           <p>{"> system.status: ONLINE"}</p>
           <p>{"> render.engine: Three.js + R3F"}</p>
-          <p>{"> point_cloud: 8000 particles"}</p>
-          <p>{"> fps.target: 60"}</p>
+          <p>{"> point_cloud: 50001 particles"}</p>
+          <p>{"> model.status: LOADED"}</p>
         </motion.div>
       </motion.div>
 
       {/* 底部滚动提示 */}
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1, delay: 1.5 }}
@@ -111,7 +111,7 @@ export default function Home() {
         >
           <div className="w-1 h-2 rounded-full bg-primary" />
         </motion.div>
-      </motion.div>
+      </motion.div> */}
     </div>
   );
 }

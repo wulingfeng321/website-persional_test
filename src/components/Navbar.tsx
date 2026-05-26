@@ -10,6 +10,7 @@ const navItems = [
   { label: "Homework1", href: "/homework1" },
   { label: "Homework2", href: "/homework2" },
   { label: "Contact", href: "/contact" },
+  { label: "PCD Settings", href: "/settings" },
 ];
 
 export default function Navbar() {
