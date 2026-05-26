@@ -185,12 +185,12 @@ export default function BridgeGame() {
   const [game, setGame] = useState<GameState | null>(null);
   const [autoTimer, setAutoTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearAutoTimer = () => {
+  const clearAutoTimer = useCallback(() => {
     if (autoTimer) {
       clearTimeout(autoTimer);
       setAutoTimer(null);
     }
-  };
+  }, [autoTimer]);
 
   const startNewGame = useCallback(() => {
     clearAutoTimer();
@@ -204,7 +204,7 @@ export default function BridgeGame() {
       newGame.currentTrick.push({ player, card });
     }
     setGame({ ...newGame });
-  }, []);
+  }, [clearAutoTimer]);
 
   const advanceToNextTrick = useCallback(() => {
     setGame((prev) => {
@@ -284,7 +284,7 @@ export default function BridgeGame() {
         return { ...g };
       });
     },
-    []
+    [clearAutoTimer]
   );
 
   useEffect(() => {

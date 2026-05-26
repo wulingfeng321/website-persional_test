@@ -147,7 +147,7 @@ function PointCloud({ settings, onLoadingStatusChange, onProgressChange, onPoint
         console.error("[PointCloud] PCD 加载失败:", err);
         onLoadingStatusChange?.("error");
       });
-  }, []);
+  }, [onLoadingStatusChange, onProgressChange, onPointCountChange]);
 
   const count = pcdData ? pcdData.count : (isMobile ? 3000 : 8000);
 

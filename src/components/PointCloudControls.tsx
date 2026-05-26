@@ -311,7 +311,7 @@ export default function PointCloudControls({ settings, onSettingsChange }: Point
         <div style={{ marginBottom: "4px", color: "#aaa" }}>快捷操作:</div>
         <div>• 拖动滑块实时预览效果</div>
         <div>• 鼠标移动控制视差效果</div>
-        <div>• 点击"重置"恢复默认设置</div>
+        <div>• 点击&quot;重置&quot;恢复默认设置</div>
       </div>
     </div>
   );
