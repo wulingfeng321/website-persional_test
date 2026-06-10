@@ -2,41 +2,37 @@
 
 import { useRef, useMemo, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { usePathname } from "next/navigation";
 import * as THREE from "three";
 import { loadPCD, normalizePCDData, PCDData } from "@/lib/pcdLoader";
-import { PointCloudSettings, defaultSettings } from "./PointCloudControls";
+import { PointCloudSettings } from "./PointCloudControls";
 import { usePointCloudSettings } from "@/lib/PointCloudSettingsContext";
+import { getPointCloudConfig, RoutePointCloudConfig } from "@/lib/pointCloudPages";
 
-/**
- * PCD 配置：修改此路径指向你的 .pcd 文件
- * 文件放在 public/models/ 目录下，例如：
- *   public/models/bunny.pcd   →  PCD_URL = "/models/bunny.pcd"
- * 设为 null 则使用程序化生成的点云
- */
-const PCD_URL = "/models/example.pcd"; // ← 修改这里加载你的 PCD 文件
-
-// 组件 Props
 interface PointCloudBackgroundProps {
   settings?: PointCloudSettings;
 }
 
-/* 相机控制器 - 带入场动画 */
-const INTRO_START_Z = 0.5; // 起始位置（点云内部）
-const INTRO_DURATION = 3.0; // 动画持续时间（秒）
-const INTRO_HOLD = 1.0; // 在内部停留时间（秒）
+const INTRO_START_Z = 1.2;
+const INTRO_DURATION = 2.8;
+const INTRO_HOLD = 0.4;
+const PAGE_TRANSITION_DURATION = 1.35;
+
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 function CameraController({ settings }: { settings: PointCloudSettings }) {
   const { camera } = useThree();
-  const introRef = useRef({
-    startTime: -1,
-    completed: false,
-    initialZ: INTRO_START_Z,
-  });
+  const introRef = useRef({ startTime: -1, completed: false });
 
   useFrame((state) => {
     const elapsed = state.clock.getElapsedTime();
 
-    // 记录动画开始时间
     if (introRef.current.startTime < 0) {
       introRef.current.startTime = elapsed;
       camera.position.z = INTRO_START_Z;
@@ -44,34 +40,23 @@ function CameraController({ settings }: { settings: PointCloudSettings }) {
 
     const timeSinceStart = elapsed - introRef.current.startTime;
 
-    // 入场动画阶段
     if (!introRef.current.completed) {
-      // 停留阶段
       if (timeSinceStart < INTRO_HOLD) {
-        // 在内部轻微浮动
-        camera.position.z = INTRO_START_Z + Math.sin(elapsed * 2) * 0.1;
-        camera.position.x = Math.sin(elapsed * 0.5) * 0.3;
-        camera.position.y = Math.cos(elapsed * 0.3) * 0.2;
-      }
-      // 拉远阶段
-      else {
+        camera.position.z = INTRO_START_Z + Math.sin(elapsed * 2) * 0.08;
+        camera.position.x = Math.sin(elapsed * 0.5) * 0.18;
+        camera.position.y = Math.cos(elapsed * 0.3) * 0.12;
+      } else {
         const progress = Math.min((timeSinceStart - INTRO_HOLD) / INTRO_DURATION, 1);
-        // 使用 easeOutExpo 缓动函数，让动画更流畅
-        const eased = 1 - Math.pow(2, -10 * progress);
-
-        // 从内部位置插值到目标位置
+        const eased = easeOutCubic(progress);
         camera.position.z = INTRO_START_Z + (settings.cameraDistance - INTRO_START_Z) * eased;
         camera.position.x = settings.cameraX * eased;
         camera.position.y = settings.cameraY * eased;
 
-        // 动画完成
         if (progress >= 1) {
           introRef.current.completed = true;
         }
       }
-    }
-    // 正常控制阶段
-    else {
+    } else {
       camera.position.x += (settings.cameraX - camera.position.x) * 0.05;
       camera.position.y += (settings.cameraY - camera.position.y) * 0.05;
       camera.position.z += (settings.cameraDistance - camera.position.z) * 0.05;
@@ -83,32 +68,38 @@ function CameraController({ settings }: { settings: PointCloudSettings }) {
   return null;
 }
 
-/* 点云粒子系统 */
 interface PointCloudProps {
   settings: PointCloudSettings;
+  routeConfig: RoutePointCloudConfig;
   onLoadingStatusChange?: (status: "idle" | "loading" | "loaded" | "error") => void;
   onProgressChange?: (progress: number) => void;
   onPointCountChange?: (count: number) => void;
 }
 
-function PointCloud({ settings, onLoadingStatusChange, onProgressChange, onPointCountChange }: PointCloudProps) {
+function PointCloud({ settings, routeConfig, onLoadingStatusChange, onProgressChange, onPointCountChange }: PointCloudProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const materialRef = useRef<THREE.PointsMaterial>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const settingsRef = useRef(settings);
+  const routeConfigRef = useRef(routeConfig);
+  const transitionRef = useRef({ key: routeConfig.label, startTime: -1, spin: 0 });
   const [isMobile, setIsMobile] = useState(false);
   const [pcdData, setPcdData] = useState<PCDData | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const introAnimRef = useRef({
-    startTime: -1,
-    particleScale: 0, // 粒子初始大小为0
-    opacity: 0, // 初始透明度为0
-  });
 
-  // 保持 settingsRef 最新
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    routeConfigRef.current = routeConfig;
+    transitionRef.current = {
+      key: routeConfig.label,
+      startTime: performance.now() / 1000,
+      spin: transitionRef.current.spin,
+    };
+    setIsLoaded(false);
+  }, [routeConfig]);
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 768);
@@ -117,54 +108,51 @@ function PointCloud({ settings, onLoadingStatusChange, onProgressChange, onPoint
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 加载 PCD 文件
   useEffect(() => {
-    if (!PCD_URL) {
-      console.log("[PointCloud] PCD_URL 为空，使用程序化点云");
-      return;
-    }
+    const controller = new AbortController();
 
-    console.log("[PointCloud] 开始加载 PCD:", PCD_URL);
+    console.log("[PointCloud] 开始加载 PCD:", routeConfig.pcdUrl, routeConfig.label);
     onLoadingStatusChange?.("loading");
+    onProgressChange?.(0);
 
-    loadPCD(PCD_URL, (loaded, total) => {
-      const progress = Math.round((loaded / total) * 100);
+    loadPCD(routeConfig.pcdUrl, (loaded, total) => {
+      const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;
       onProgressChange?.(progress);
-      if (progress % 20 === 0) {
-        console.log(`[PointCloud] 加载进度: ${progress}%`);
-      }
-    })
+    }, controller.signal)
       .then((data) => {
-        console.log("[PointCloud] PCD 加载成功，开始归一化...");
-        const normalized = normalizePCDData(data, 5);
+        if (controller.signal.aborted) return;
+        const normalized = normalizePCDData(data, routeConfig.targetRadius);
         setPcdData(normalized);
         setIsLoaded(true);
         onLoadingStatusChange?.("loaded");
+        onProgressChange?.(100);
         onPointCountChange?.(normalized.count);
         console.log("[PointCloud] PCD 归一化完成，点数:", normalized.count);
       })
       .catch((err) => {
+        if (controller.signal.aborted) return;
         console.error("[PointCloud] PCD 加载失败:", err);
+        setPcdData(null);
+        setIsLoaded(false);
         onLoadingStatusChange?.("error");
       });
-  }, [onLoadingStatusChange, onProgressChange, onPointCountChange]);
+
+    return () => controller.abort();
+  }, [routeConfig, onLoadingStatusChange, onProgressChange, onPointCountChange]);
 
   const count = pcdData ? pcdData.count : (isMobile ? 3000 : 8000);
+  const colorKey = settings.colorMode === "default" ? routeConfig.colorMode : settings.colorMode;
 
-  // 程序化生成点云（PCD 未加载时的 fallback）
-  // 使用 key 来强制重新生成颜色
-  const colorKey = settings.colorMode;
   const { positions, colors } = useMemo(() => {
     if (pcdData) {
       return {
         positions: pcdData.positions,
-        colors: pcdData.colors || generateDefaultColors(pcdData.count, colorKey),
+        colors: pcdData.colors || generateDefaultColors(pcdData.count, colorKey, routeConfig.transitionSeed),
       };
     }
-    return generateProceduralCloud(isMobile ? 3000 : 8000, colorKey);
-  }, [pcdData, isMobile, colorKey]);
+    return generateProceduralCloud(isMobile ? 3000 : 8000, colorKey, routeConfig.transitionSeed);
+  }, [pcdData, isMobile, colorKey, routeConfig.transitionSeed]);
 
-  // 鼠标交互
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -174,81 +162,58 @@ function PointCloud({ settings, onLoadingStatusChange, onProgressChange, onPoint
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // 动画循环
   useFrame((state) => {
     if (!pointsRef.current) return;
+
     const time = state.clock.getElapsedTime();
+    const now = performance.now() / 1000;
     const currentSettings = settingsRef.current;
+    const currentRoute = routeConfigRef.current;
+    const transitionProgress = transitionRef.current.startTime < 0
+      ? 1
+      : Math.min((now - transitionRef.current.startTime) / PAGE_TRANSITION_DURATION, 1);
+    const easedTransition = easeInOutCubic(transitionProgress);
+    const burst = Math.sin(easedTransition * Math.PI);
+    const loadFade = isLoaded ? 1 : 0.42;
 
-    // 记录动画开始时间
-    if (introAnimRef.current.startTime < 0) {
-      introAnimRef.current.startTime = time;
-    }
-
-    const timeSinceStart = time - introAnimRef.current.startTime;
-
-    // 粒子聚合动画（前 3 秒）
-    if (timeSinceStart < 3) {
-      const progress = Math.min(timeSinceStart / 2.5, 1);
-      // 使用 easeOutQuart 缓动
-      const eased = 1 - Math.pow(1 - progress, 4);
-
-      introAnimRef.current.particleScale = eased;
-      introAnimRef.current.opacity = eased * 0.9;
-    } else {
-      introAnimRef.current.particleScale = 1;
-      introAnimRef.current.opacity = 0.9;
-    }
-
-    // 自动旋转 - 使用 rotationSpeed 作为每帧增量
     if (currentSettings.autoRotate) {
-      pointsRef.current.rotation.y += currentSettings.rotationSpeed;
+      transitionRef.current.spin += currentSettings.rotationSpeed;
     }
 
-    // 鼠标交互
-    const targetRotX = mouseRef.current.y * currentSettings.mouseSensitivity;
-    const targetRotY = mouseRef.current.x * currentSettings.mouseSensitivity;
-    pointsRef.current.rotation.x += (targetRotX - pointsRef.current.rotation.x) * 0.02;
+    const mouseRotX = mouseRef.current.y * currentSettings.mouseSensitivity;
+    const mouseRotY = mouseRef.current.x * currentSettings.mouseSensitivity;
+    const baseX = currentRoute.preRotation[0] + currentSettings.rotationX + mouseRotX;
+    const baseY = currentRoute.preRotation[1] + currentSettings.rotationY + transitionRef.current.spin + (currentSettings.autoRotate ? 0 : mouseRotY);
+    const baseZ = currentRoute.preRotation[2];
 
-    // 如果没有自动旋转，才应用鼠标 Y 轴旋转
-    if (!currentSettings.autoRotate) {
-      pointsRef.current.rotation.y += (targetRotY - pointsRef.current.rotation.y) * 0.02;
-    }
+    pointsRef.current.rotation.x += (baseX - pointsRef.current.rotation.x) * 0.06;
+    pointsRef.current.rotation.y += (baseY - pointsRef.current.rotation.y) * 0.06;
+    pointsRef.current.rotation.z += (baseZ - pointsRef.current.rotation.z) * 0.06;
 
-    // 浮动效果
-    pointsRef.current.position.y = Math.sin(time * 0.5) * 0.1;
+    const targetScale = (0.72 + easedTransition * 0.28 + burst * 1.05) * loadFade;
+    pointsRef.current.scale.setScalar(targetScale);
+    pointsRef.current.position.x = currentRoute.positionOffset[0];
+    pointsRef.current.position.y = currentRoute.positionOffset[1] + Math.sin(time * 0.5) * 0.1;
+    pointsRef.current.position.z = currentRoute.positionOffset[2];
 
-    // 更新材质属性
     if (materialRef.current) {
-      // 点大小：入场时从 0 增长，然后使用设置值
-      const targetSize = currentSettings.pointSize * introAnimRef.current.particleScale;
-      materialRef.current.size = targetSize;
-      materialRef.current.opacity = introAnimRef.current.opacity;
+      materialRef.current.size = currentSettings.pointSize * (1 + burst * 0.85);
+      materialRef.current.opacity = Math.min(0.92, 0.36 + easedTransition * 0.48 + burst * 0.28);
     }
   });
 
   return (
     <points ref={pointsRef}>
-      <bufferGeometry key={`${isLoaded ? "pcd" : "procedural"}-${colorKey}`}>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
+      <bufferGeometry key={`${routeConfig.label}-${isLoaded ? "pcd" : "procedural"}-${colorKey}`}>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={count} array={colors} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial
         ref={materialRef}
         size={settings.pointSize}
         vertexColors
         transparent
-        opacity={0.9}
+        opacity={0.5}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -257,34 +222,25 @@ function PointCloud({ settings, onLoadingStatusChange, onProgressChange, onPoint
   );
 }
 
-/* 根据颜色模式生成颜色 */
-function getColorForMode(brightness: number, mode: string, index?: number): [number, number, number] {
-  switch (mode) {
+function getColorForMode(brightness: number, colorMode: string, index: number = 0): [number, number, number] {
+  switch (colorMode) {
     case "blue":
-      return [brightness * 0.2, brightness * 0.4, brightness];
+      return [0.08 * brightness, 0.35 * brightness, brightness];
     case "cyan":
-      return [brightness * 0.2, brightness * 0.8, brightness];
+      return [0.1 * brightness, brightness, brightness];
     case "white":
       return [brightness, brightness, brightness];
-    case "rainbow":
-      if (index !== undefined) {
-        const hue = (index * 0.001) % 1;
-        return hslToRgb(hue, 0.8, brightness * 0.6);
-      }
-      return [brightness, brightness * 0.5, brightness * 0.5];
-    default: // "default"
-      const blueShift = Math.random() * 0.3;
-      return [
-        brightness * (1 - blueShift * 0.5),
-        brightness * (1 - blueShift * 0.2),
-        brightness,
-      ];
+    case "rainbow": {
+      const hue = (index * 0.618033988749895) % 1;
+      return hslToRgb(hue, 0.85, brightness * 0.56);
+    }
+    default:
+      return [0.25 * brightness, 0.58 * brightness, brightness];
   }
 }
 
-/* HSL 转 RGB */
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  let r, g, b;
+  let r: number, g: number, b: number;
   if (s === 0) {
     r = g = b = l;
   } else {
@@ -305,23 +261,27 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [r, g, b];
 }
 
-/* 生成程序化点云 */
-function generateProceduralCloud(count: number, colorMode: string = "default") {
+function seededNoise(index: number, seed: number) {
+  const x = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function generateProceduralCloud(count: number, colorMode: string = "default", seed: number = 0) {
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 3 + Math.random() * 5;
+    const theta = seededNoise(i, seed + 1) * Math.PI * 2;
+    const phi = Math.acos(2 * seededNoise(i, seed + 2) - 1);
+    const r = 3 + seededNoise(i, seed + 3) * 5;
 
     positions[i3] = r * Math.sin(phi) * Math.cos(theta);
     positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i3 + 2] = r * Math.cos(phi);
 
-    const brightness = 0.3 + Math.random() * 0.7;
-    const [cr, cg, cb] = getColorForMode(brightness, colorMode, i);
+    const brightness = 0.35 + seededNoise(i, seed + 4) * 0.65;
+    const [cr, cg, cb] = getColorForMode(brightness, colorMode, i + seed * 1000);
     colors[i3] = cr;
     colors[i3 + 1] = cg;
     colors[i3 + 2] = cb;
@@ -330,13 +290,12 @@ function generateProceduralCloud(count: number, colorMode: string = "default") {
   return { positions, colors };
 }
 
-/* 为没有颜色的 PCD 数据生成默认颜色 */
-function generateDefaultColors(count: number, colorMode: string = "default"): Float32Array {
+function generateDefaultColors(count: number, colorMode: string = "default", seed: number = 0): Float32Array {
   const colors = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
-    const brightness = 0.4 + Math.random() * 0.6;
-    const [cr, cg, cb] = getColorForMode(brightness, colorMode, i);
+    const brightness = 0.4 + seededNoise(i, seed + 5) * 0.6;
+    const [cr, cg, cb] = getColorForMode(brightness, colorMode, i + seed * 1000);
     colors[i3] = cr;
     colors[i3 + 1] = cg;
     colors[i3 + 2] = cb;
@@ -344,7 +303,6 @@ function generateDefaultColors(count: number, colorMode: string = "default"): Fl
   return colors;
 }
 
-/* 额外的漂浮粒子层 */
 function FloatingParticles() {
   const ref = useRef<THREE.Points>(null);
   const count = 500;
@@ -352,9 +310,9 @@ function FloatingParticles() {
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 20;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 20;
+      arr[i * 3] = (seededNoise(i, 11) - 0.5) * 20;
+      arr[i * 3 + 1] = (seededNoise(i, 12) - 0.5) * 20;
+      arr[i * 3 + 2] = (seededNoise(i, 13) - 0.5) * 20;
     }
     return arr;
   }, []);
@@ -369,18 +327,13 @@ function FloatingParticles() {
   return (
     <points ref={ref}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial
         size={0.015}
         color="#00d4ff"
         transparent
-        opacity={0.4}
+        opacity={0.28}
         sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -390,20 +343,16 @@ function FloatingParticles() {
 }
 
 export default function PointCloudBackground({ settings: externalSettings }: PointCloudBackgroundProps = {}) {
-  return (
-    <PointCloudBackgroundInner settings={externalSettings} />
-  );
+  return <PointCloudBackgroundInner settings={externalSettings} />;
 }
 
 function PointCloudBackgroundInner({ settings: externalSettings }: PointCloudBackgroundProps = {}) {
   const [loadingStatus, setLoadingStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [pointCount, setPointCount] = useState(0);
-
-  // 从 Context 获取设置
+  const pathname = usePathname();
+  const routeConfig = useMemo(() => getPointCloudConfig(pathname), [pathname]);
   const { settings: contextSettings } = usePointCloudSettings();
-
-  // 优先使用外部传入的设置，否则使用 Context 中的设置
   const settings = externalSettings || contextSettings;
 
   return (
@@ -412,17 +361,14 @@ function PointCloudBackgroundInner({ settings: externalSettings }: PointCloudBac
         camera={{ position: [0, 0, 20], fov: 60, near: 0.1, far: 100 }}
         dpr={[1, 1.5]}
         style={{ background: "#0a0a0f" }}
-        gl={{
-          antialias: false,
-          alpha: false,
-          powerPreference: "high-performance",
-        }}
+        gl={{ antialias: false, alpha: false, powerPreference: "high-performance" }}
       >
         <color attach="background" args={["#0a0a0f"]} />
         <fog attach="fog" args={["#0a0a0f", 20, 50]} />
         <CameraController settings={settings} />
         <PointCloud
           settings={settings}
+          routeConfig={routeConfig}
           onLoadingStatusChange={setLoadingStatus}
           onProgressChange={setLoadingProgress}
           onPointCountChange={setPointCount}
@@ -430,78 +376,10 @@ function PointCloudBackgroundInner({ settings: externalSettings }: PointCloudBac
         <FloatingParticles />
       </Canvas>
 
-      {/* 调试信息 */}
-      {/* <div
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          color: "#00d4ff",
-          fontFamily: "monospace",
-          fontSize: "11px",
-          opacity: 0.7,
-          zIndex: 10,
-          background: "rgba(0,0,0,0.5)",
-          padding: "8px",
-          borderRadius: "4px",
-        }}
-      >
-        <div>Status: {loadingStatus}</div>
-        <div>Points: {pointCount}</div>
-        {loadingStatus === "loading" && <div>Progress: {loadingProgress}%</div>}
-      </div> */}
-
-      {/* 加载状态指示器 */}
-      {/* {loadingStatus === "loading" && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            left: "20px",
-            color: "#00d4ff",
-            fontFamily: "monospace",
-            fontSize: "12px",
-            opacity: 0.8,
-            zIndex: 10,
-          }}
-        >
-          Loading PCD: {loadingProgress}%
-        </div>
-      )}
-
-      {loadingStatus === "error" && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            left: "20px",
-            color: "#ff4444",
-            fontFamily: "monospace",
-            fontSize: "12px",
-            opacity: 0.8,
-            zIndex: 10,
-          }}
-        >
-          PCD load failed, using procedural cloud
-        </div>
-      )} */}
-
-      {/* {loadingStatus === "loaded" && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            left: "20px",
-            color: "#44ff44",
-            fontFamily: "monospace",
-            fontSize: "12px",
-            opacity: 0.6,
-            zIndex: 10,
-          }}
-        >
-          PCD loaded: {pointCount} points
-        </div>
-      )} */}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-md border border-cyan-400/10 bg-slate-950/35 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-100/45 backdrop-blur-sm">
+        <div>{routeConfig.label}</div>
+        <div>{loadingStatus === "loading" ? `Loading ${loadingProgress}%` : `${loadingStatus} · ${pointCount} pts`}</div>
+      </div>
     </div>
   );
 }

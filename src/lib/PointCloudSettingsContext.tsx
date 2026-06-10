@@ -13,6 +13,18 @@ const PointCloudSettingsContext = createContext<PointCloudSettingsContextType | 
 
 const STORAGE_KEY = "pointcloud-settings";
 
+function sanitizeSettings(value: Partial<PointCloudSettings>): PointCloudSettings {
+  return {
+    ...defaultSettings,
+    ...value,
+    rotationSpeed: Math.min(Math.max(value.rotationSpeed ?? defaultSettings.rotationSpeed, 0), 0.02),
+    pointSize: Math.min(Math.max(value.pointSize ?? defaultSettings.pointSize, 0.01), 0.2),
+    mouseSensitivity: Math.min(Math.max(value.mouseSensitivity ?? defaultSettings.mouseSensitivity, 0), 0.5),
+    rotationX: Math.min(Math.max(value.rotationX ?? defaultSettings.rotationX, -Math.PI), Math.PI),
+    rotationY: Math.min(Math.max(value.rotationY ?? defaultSettings.rotationY, -Math.PI), Math.PI),
+  };
+}
+
 export function PointCloudSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<PointCloudSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -23,7 +35,7 @@ export function PointCloudSettingsProvider({ children }: { children: ReactNode }
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setSettings({ ...defaultSettings, ...parsed });
+        setSettings(sanitizeSettings(parsed));
       }
     } catch (e) {
       console.warn("Failed to load settings from localStorage:", e);
@@ -33,9 +45,10 @@ export function PointCloudSettingsProvider({ children }: { children: ReactNode }
 
   // 保存设置到 localStorage
   const updateSettings = (newSettings: PointCloudSettings) => {
-    setSettings(newSettings);
+    const sanitized = sanitizeSettings(newSettings);
+    setSettings(sanitized);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
     } catch (e) {
       console.warn("Failed to save settings to localStorage:", e);
     }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import PointCloudBackground from "@/components/PointCloudBackground";
 import PointCloudControls from "@/components/PointCloudControls";
 import { usePointCloudSettings } from "@/lib/PointCloudSettingsContext";
 
@@ -10,12 +9,7 @@ export default function SettingsPage() {
   const [showControls, setShowControls] = useState(true);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}>
-      {/* 点云背景 - 传递设置以确保同步 */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-        <PointCloudBackground settings={settings} />
-      </div>
-
+    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "rgba(5, 10, 18, 0.18)" }}>
       {/* 控制面板切换按钮 */}
       <button
         onClick={() => setShowControls(!showControls)}
