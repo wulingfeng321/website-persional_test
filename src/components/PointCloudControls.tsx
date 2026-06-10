@@ -33,7 +33,7 @@ export const defaultSettings: PointCloudSettings = {
   cameraZ: 10,
   rotationX: 0,
   rotationY: 0,
-  rotationSpeed: 0.5,
+  rotationSpeed: 0.003,
   pointSize: 0.02,
   colorMode: "default",
   autoRotate: false,
@@ -165,6 +165,40 @@ export default function PointCloudControls({ settings, onSettingsChange }: Point
           step="0.5"
           value={localSettings.cameraY}
           onChange={(e) => updateSetting("cameraY", parseFloat(e.target.value))}
+          style={{ width: "100%" }}
+        />
+      </div>
+
+
+      {/* 模型预置旋转 */}
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+          <span>模型 X 旋转</span>
+          <span style={{ color: "#00d4ff" }}>{localSettings.rotationX.toFixed(2)} rad</span>
+        </label>
+        <input
+          type="range"
+          min="-3.14"
+          max="3.14"
+          step="0.01"
+          value={localSettings.rotationX}
+          onChange={(e) => updateSetting("rotationX", parseFloat(e.target.value))}
+          style={{ width: "100%" }}
+        />
+      </div>
+
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+          <span>模型 Y 旋转</span>
+          <span style={{ color: "#00d4ff" }}>{localSettings.rotationY.toFixed(2)} rad</span>
+        </label>
+        <input
+          type="range"
+          min="-3.14"
+          max="3.14"
+          step="0.01"
+          value={localSettings.rotationY}
+          onChange={(e) => updateSetting("rotationY", parseFloat(e.target.value))}
           style={{ width: "100%" }}
         />
       </div>

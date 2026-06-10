@@ -212,10 +212,10 @@ function parseBinary(buffer: ArrayBuffer, header: ReturnType<typeof parseHeader>
  * @param url PCD 文件路径（相对于 public 目录）
  * @param onProgress 加载进度回调
  */
-export async function loadPCD(url: string, onProgress?: ProgressCallback): Promise<PCDData> {
+export async function loadPCD(url: string, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<PCDData> {
   console.log(`[PCD Loader] 开始加载: ${url}`);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load PCD file: ${response.status} ${response.statusText}`);
   }
@@ -235,6 +235,9 @@ export async function loadPCD(url: string, onProgress?: ProgressCallback): Promi
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
+    if (signal?.aborted) {
+      throw new DOMException("PCD loading aborted", "AbortError");
+    }
     chunks.push(value);
     loaded += value.length;
     if (onProgress && total > 0) {
