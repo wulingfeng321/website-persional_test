@@ -12,8 +12,8 @@ export const PAGE_POINT_CLOUDS: Record<string, RoutePointCloudConfig> = {
   "/": {
     label: "首页 / Welcome cloud",
     pcdUrl: "/models/example.pcd",
-    targetRadius: 5,
-    preRotation: [0, 0, 0],
+    targetRadius: 4.8,
+    preRotation: [-Math.PI/2, 0, 0],
     positionOffset: [0, 0, 0],
     colorMode: "default",
     transitionSeed: 0,
@@ -21,19 +21,19 @@ export const PAGE_POINT_CLOUDS: Record<string, RoutePointCloudConfig> = {
   "/personal-info": {
     label: "个人详情 / Profile cube",
     pcdUrl: "/models/cube.pcd",
-    targetRadius: 4.8,
+    targetRadius: 4.0,
     preRotation: [0.35, 0.2, -0.08],
     positionOffset: [0.15, 0, 0],
-    colorMode: "cyan",
+    colorMode: "rainbow",
     transitionSeed: 1,
   },
   "/homework1": {
     label: "作业1 / Blackjack cloud",
     pcdUrl: "/models/example.pcd",
     targetRadius: 5.2,
-    preRotation: [0.05, Math.PI / 2, 0.18],
+    preRotation: [-Math.PI/2, 0, 0],
     positionOffset: [-0.15, 0.05, 0],
-    colorMode: "blue",
+    colorMode: "white",
     transitionSeed: 2,
   },
   "/homework2": {
@@ -47,7 +47,7 @@ export const PAGE_POINT_CLOUDS: Record<string, RoutePointCloudConfig> = {
   },
   "/contact": {
     label: "联系方式 / Contact cloud",
-    pcdUrl: "/models/example.pcd",
+    pcdUrl: "/models/cube.pcd",
     targetRadius: 4.7,
     preRotation: [-0.28, -0.75, 0.05],
     positionOffset: [0.1, 0.08, 0],
