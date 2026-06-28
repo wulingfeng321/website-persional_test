@@ -27,7 +27,7 @@ export interface PointCloudSettings {
 
 // 默认设置
 export const defaultSettings: PointCloudSettings = {
-  cameraDistance: 5.5,
+  cameraDistance: 13.0,
   cameraX: 0,
   cameraY: 0,
   cameraZ: 10,
