@@ -159,15 +159,15 @@ function createGame(): GameState {
     hands[PLAYERS[i % 4]].push(card);
   });
 
+  // 王牌：发给东家的最后一张牌（排序前确定，避免总是梅花）
+  const trumpCard = deck[49];
+  const trumpSuit = trumpCard.suit;
+
   for (const player of PLAYERS) {
     hands[player].sort(
       (a, b) => SUITS.indexOf(a.suit as typeof SUITS[number]) - SUITS.indexOf(b.suit as typeof SUITS[number]) || cardStrength(a) - cardStrength(b)
     );
   }
-
-  // 王牌：最后一张牌（发给东家的最后一张）
-  const trumpCard = hands.East[hands.East.length - 1];
-  const trumpSuit = trumpCard.suit;
 
   return {
     hands,

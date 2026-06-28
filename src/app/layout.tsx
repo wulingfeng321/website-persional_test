@@ -5,10 +5,10 @@ import PointCloudBackground from "@/components/PointCloudBackground";
 import { PointCloudSettingsProvider } from "@/lib/PointCloudSettingsContext";
 
 export const metadata: Metadata = {
-  title: "3D Point Cloud Blog",
+  title: "game-center-3D",
   description: "A futuristic personal blog with 3D point cloud visualization",
   openGraph: {
-    title: "3D Point Cloud Blog",
+    title: "game-center-3D",
     description: "A futuristic personal blog with 3D point cloud visualization",
     type: "website",
   },
