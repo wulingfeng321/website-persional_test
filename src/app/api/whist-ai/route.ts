@@ -30,6 +30,18 @@ const openai = new OpenAI({
   baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1",
 });
 
+const SUIT_NORMALIZE: Record<string, string> = {
+  "♠": "♠", "♥": "♥", "♦": "♦", "♣": "♣",
+  "spades": "♠", "hearts": "♥", "diamonds": "♦", "clubs": "♣",
+  "spade": "♠", "heart": "♥", "diamond": "♦", "club": "♣",
+  "黑桃": "♠", "红心": "♥", "红桃": "♥", "方块": "♦", "梅花": "♣",
+};
+
+function normalizeSuit(suit: string): string {
+  const key = suit.trim().toLowerCase();
+  return SUIT_NORMALIZE[key] || SUIT_NORMALIZE[suit] || suit;
+}
+
 const SYSTEM_PROMPT = `你是Whist桥牌AI。规则：必须跟花色；无同花色可出任意牌；王牌最大；同花色A最大2最小。
 你必须从合法牌中选择。
 回复格式：先写一行简短思考（10字以内），然后写JSON。
@@ -61,13 +73,16 @@ function buildUserPrompt(body: AIRequestBody): string {
 function parseCardResponse(text: string, legalCards: Card[]): Card | null {
   // 尝试从响应中提取 JSON（支持 markdown code blocks）
   const cleaned = text.replace(/```json?\s*/g, "").replace(/```/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.rank && parsed.suit) {
+      // 处理 {rank, suit} 和 {card: {rank, suit}} 两种格式
+      const cardData = parsed.rank && parsed.suit ? parsed : parsed.card;
+      if (cardData && cardData.rank && cardData.suit) {
+        const normalizedSuit = normalizeSuit(cardData.suit);
         const found = legalCards.find(
-          (c) => c.rank === parsed.rank && c.suit === parsed.suit
+          (c) => c.rank === cardData.rank && c.suit === normalizedSuit
         );
         if (found) return found;
       }
@@ -117,24 +132,40 @@ export async function POST(request: Request) {
     }
 
     const model = process.env.OPENAI_MODEL || "deepseek-chat";
+    const MAX_RETRIES = 1;
 
-    const completion = await openai.chat.completions.create({
-      model,
-      max_tokens: 200,
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(body) },
-      ],
-    });
+    let card: Card | null = null;
+    let responseText = "";
 
-    const responseText = completion.choices[0]?.message?.content || "";
-    console.log(`[Whist AI] ${body.player} raw response:`, responseText);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const messages = attempt === 0
+        ? [
+            { role: "system" as const, content: SYSTEM_PROMPT },
+            { role: "user" as const, content: buildUserPrompt(body) },
+          ]
+        : [
+            { role: "system" as const, content: SYSTEM_PROMPT },
+            { role: "user" as const, content: buildUserPrompt(body) },
+            { role: "assistant" as const, content: responseText },
+            { role: "user" as const, content: `你的回复无法解析。请只回复JSON格式，不要添加其他文字。从以下合法牌中选择一张：${body.legalCards.map(c => `${c.rank}${c.suit}`).join(", ")}\n回复格式：\n{"rank":"A","suit":"♠"}` },
+          ];
 
-    const card = parseCardResponse(responseText, body.legalCards);
+      const completion = await openai.chat.completions.create({
+        model,
+        max_tokens: 200,
+        temperature: 0.3,
+        messages,
+      });
+
+      responseText = completion.choices[0]?.message?.content || "";
+      console.log(`[Whist AI] ${body.player} raw response (attempt ${attempt + 1}):`, responseText);
+
+      card = parseCardResponse(responseText, body.legalCards);
+      if (card) break;
+    }
 
     if (!card) {
-      console.warn(`[Whist AI] Failed to parse card from: "${responseText}"`);
+      console.warn(`[Whist AI] Failed to parse card after ${MAX_RETRIES + 1} attempts: "${responseText}"`);
       return NextResponse.json(
         { error: "AI returned invalid card", raw: responseText },
         { status: 422 }
