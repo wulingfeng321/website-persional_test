@@ -240,7 +240,7 @@ export async function loadPCD(url: string, onProgress?: ProgressCallback, signal
     }
     chunks.push(value);
     loaded += value.length;
-    if (onProgress && total > 0) {
+    if (onProgress) {
       onProgress(loaded, total);
     }
   }

@@ -40,15 +40,6 @@ export const defaultSettings: PointCloudSettings = {
   mouseSensitivity: 0.5,
 };
 
-// 颜色预设
-const colorPresets = {
-  default: { label: "默认蓝白", color: "#4488ff" },
-  blue: { label: "纯蓝", color: "#0066ff" },
-  cyan: { label: "青色", color: "#00d4ff" },
-  white: { label: "白色", color: "#ffffff" },
-  rainbow: { label: "彩虹", color: "linear-gradient(90deg, red, orange, yellow, green, blue, purple)" },
-};
-
 interface PointCloudControlsProps {
   settings: PointCloudSettings;
   onSettingsChange: (settings: PointCloudSettings) => void;
@@ -279,35 +270,6 @@ export default function PointCloudControls({ settings, onSettingsChange }: Point
         >
           {localSettings.autoRotate ? "开启" : "关闭"}
         </button>
-      </div>
-
-      {/* 颜色模式 */}
-      <div style={{ marginBottom: "16px" }}>
-        <label style={{ display: "block", marginBottom: "8px" }}>颜色模式</label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          {Object.entries(colorPresets).map(([key, preset]) => (
-            <button
-              key={key}
-              onClick={() => updateSetting("colorMode", key as PointCloudSettings["colorMode"])}
-              style={{
-                padding: "8px",
-                background:
-                  localSettings.colorMode === key
-                    ? "rgba(0, 212, 255, 0.3)"
-                    : "rgba(50, 50, 50, 0.5)",
-                border: `1px solid ${
-                  localSettings.colorMode === key ? "#00d4ff" : "rgba(100, 100, 100, 0.5)"
-                }`,
-                borderRadius: "6px",
-                color: localSettings.colorMode === key ? "#00d4ff" : "#888",
-                cursor: "pointer",
-                fontSize: "12px",
-              }}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* 重置旋转 */}

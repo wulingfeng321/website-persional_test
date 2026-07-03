@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import PointCloudBackground from "@/components/PointCloudBackground";
 import { PointCloudSettingsProvider } from "@/lib/PointCloudSettingsContext";
+import { PointCloudDataProvider } from "@/lib/PointCloudDataContext";
 
 export const metadata: Metadata = {
   title: "game-center-3D",
@@ -22,15 +23,17 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="relative min-h-screen">
-        <PointCloudSettingsProvider>
-          <div className="fixed inset-0 z-0">
-            <PointCloudBackground />
-          </div>
-          <div className="relative z-10">
-            <Navbar />
-            <main>{children}</main>
-          </div>
-        </PointCloudSettingsProvider>
+        <PointCloudDataProvider>
+          <PointCloudSettingsProvider>
+            <div className="fixed inset-0 z-0">
+              <PointCloudBackground />
+            </div>
+            <div className="relative z-10">
+              <Navbar />
+              <main>{children}</main>
+            </div>
+          </PointCloudSettingsProvider>
+        </PointCloudDataProvider>
       </body>
     </html>
   );
