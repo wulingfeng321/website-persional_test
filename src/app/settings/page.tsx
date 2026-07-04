@@ -2,9 +2,25 @@
 
 import PointCloudControls from "@/components/PointCloudControls";
 import { usePointCloudSettings } from "@/lib/PointCloudSettingsContext";
+import { PAGE_POINT_CLOUDS, RoutePointCloudConfig } from "@/lib/pointCloudPages";
+
+const MODEL_LIST = Object.entries(PAGE_POINT_CLOUDS).map(([path, config]) => ({
+  path,
+  ...config,
+}));
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = usePointCloudSettings();
+  const { settings, updateSettings, overrideRouteConfig, setOverrideRouteConfig } = usePointCloudSettings();
+
+  const activeLabel = overrideRouteConfig?.label ?? PAGE_POINT_CLOUDS["/settings"].label;
+
+  const handleSelect = (config: RoutePointCloudConfig) => {
+    setOverrideRouteConfig(config);
+  };
+
+  const handleReset = () => {
+    setOverrideRouteConfig(null);
+  };
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "rgba(5, 10, 18, 0.18)" }}>
@@ -42,6 +58,84 @@ export default function SettingsPage() {
         }}
       >
         <PointCloudControls settings={settings} onSettingsChange={updateSettings} />
+
+        {/* 点云切换面板 */}
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "24px",
+            background: "rgba(10, 10, 15, 0.95)",
+            borderRadius: "12px",
+            border: "1px solid rgba(0, 212, 255, 0.2)",
+            color: "#e0e0e0",
+            fontFamily: "monospace",
+            maxWidth: "400px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "16px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid rgba(0, 212, 255, 0.3)",
+            }}
+          >
+            <h2 style={{ margin: 0, color: "#00d4ff", fontSize: "18px" }}>
+              点云切换
+            </h2>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: "6px 12px",
+                background: overrideRouteConfig
+                  ? "rgba(255, 68, 68, 0.2)"
+                  : "rgba(100, 100, 100, 0.2)",
+                border: `1px solid ${overrideRouteConfig ? "rgba(255, 68, 68, 0.5)" : "rgba(100, 100, 100, 0.3)"}`,
+                borderRadius: "6px",
+                color: overrideRouteConfig ? "#ff6666" : "#666",
+                cursor: overrideRouteConfig ? "pointer" : "default",
+                fontSize: "12px",
+              }}
+            >
+              恢复默认
+            </button>
+          </div>
+
+          <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px" }}>
+            当前: {activeLabel}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {MODEL_LIST.map((model) => {
+              const isActive = activeLabel === model.label;
+              return (
+                <button
+                  key={model.path}
+                  onClick={() => handleSelect(model)}
+                  style={{
+                    padding: "10px 14px",
+                    background: isActive
+                      ? "rgba(0, 212, 255, 0.15)"
+                      : "rgba(50, 50, 60, 0.3)",
+                    border: `1px solid ${isActive ? "rgba(0, 212, 255, 0.5)" : "rgba(80, 80, 90, 0.3)"}`,
+                    borderRadius: "8px",
+                    color: isActive ? "#00d4ff" : "#aaa",
+                    cursor: "pointer",
+                    fontFamily: "monospace",
+                    fontSize: "13px",
+                    textAlign: "left",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <div style={{ marginBottom: "2px" }}>{model.label}</div>
+                  <div style={{ fontSize: "10px", color: "#666" }}>{model.pcdUrl}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* 信息面板 */}

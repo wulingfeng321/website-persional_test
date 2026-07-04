@@ -27,7 +27,7 @@ export interface PointCloudSettings {
 
 // 默认设置
 export const defaultSettings: PointCloudSettings = {
-  cameraDistance: 13.0,
+  cameraDistance: 8.0,
   cameraX: 0,
   cameraY: 0,
   cameraZ: 10,
@@ -35,8 +35,8 @@ export const defaultSettings: PointCloudSettings = {
   rotationY: 0,
   rotationSpeed: 0.003,
   pointSize: 0.02,
-  colorMode: "default",
-  autoRotate: false,
+  colorMode: "white",
+  autoRotate: true,
   mouseSensitivity: 0.5,
 };
 

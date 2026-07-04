@@ -2,11 +2,14 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { PointCloudSettings, defaultSettings } from "@/components/PointCloudControls";
+import { RoutePointCloudConfig } from "@/lib/pointCloudPages";
 
 interface PointCloudSettingsContextType {
   settings: PointCloudSettings;
   updateSettings: (settings: PointCloudSettings) => void;
   resetSettings: () => void;
+  overrideRouteConfig: RoutePointCloudConfig | null;
+  setOverrideRouteConfig: (config: RoutePointCloudConfig | null) => void;
 }
 
 const PointCloudSettingsContext = createContext<PointCloudSettingsContextType | undefined>(undefined);
@@ -28,6 +31,7 @@ function sanitizeSettings(value: Partial<PointCloudSettings>): PointCloudSetting
 export function PointCloudSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<PointCloudSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [overrideRouteConfig, setOverrideRouteConfig] = useState<RoutePointCloudConfig | null>(null);
 
   // 从 localStorage 加载设置
   useEffect(() => {
@@ -65,7 +69,7 @@ export function PointCloudSettingsProvider({ children }: { children: ReactNode }
   };
 
   return (
-    <PointCloudSettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+    <PointCloudSettingsContext.Provider value={{ settings, updateSettings, resetSettings, overrideRouteConfig, setOverrideRouteConfig }}>
       {children}
     </PointCloudSettingsContext.Provider>
   );

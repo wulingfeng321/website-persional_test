@@ -590,9 +590,10 @@ export default function PointCloudBackground({ settings: externalSettings }: Poi
 function PointCloudBackgroundInner({ settings: externalSettings }: PointCloudBackgroundProps = {}) {
   const [pointCount, setPointCount] = useState(0);
   const pathname = usePathname();
-  const routeConfig = useMemo(() => getPointCloudConfig(pathname), [pathname]);
-  const { settings: contextSettings } = usePointCloudSettings();
+  const defaultConfig = useMemo(() => getPointCloudConfig(pathname), [pathname]);
+  const { settings: contextSettings, overrideRouteConfig } = usePointCloudSettings();
   const settings = externalSettings || contextSettings;
+  const routeConfig = overrideRouteConfig ?? defaultConfig;
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
-import { loadPCD, normalizePCDData } from "./pcdLoader";
+import { loadBin, normalizePCDData } from "./pcdLoader";
 import { PAGE_POINT_CLOUDS } from "./pointCloudPages";
 import { resamplePCDData, POINT_COUNT, BASE_RADIUS } from "./scatterHelpers";
 
@@ -60,9 +60,9 @@ export function PointCloudDataProvider({ children }: { children: ReactNode }) {
           if (controller.signal.aborted) return;
 
           console.log(`[PointCloudData] Fetching: ${url} (attempt ${attempt + 1})`);
-          const data = await loadPCD(url, (loaded, total) => {
+          const data = await loadBin(url, (loaded, total) => {
             if (controller.signal.aborted) return;
-            const estimatedTotal = total > 0 ? total : (url.includes("example") ? 31 * 1024 * 1024 : 3 * 1024 * 1024);
+            const estimatedTotal = total > 0 ? total : (url.includes("example") ? 6 * 1024 * 1024 : 600 * 1024);
             progressMap.set(url, Math.min(loaded / estimatedTotal, 0.99));
             let sum = 0;
             progressMap.forEach((v) => { sum += v; });

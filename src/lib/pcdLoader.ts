@@ -285,7 +285,7 @@ export async function loadPCD(url: string, onProgress?: ProgressCallback, signal
 }
 
 /**
- * 将 PCD 数据归一化到指定范围（居中 + 缩放）
+ * 将点云数据归一化到指定范围（居中 + 按最大欧几里得距离缩放）
  */
 export function normalizePCDData(
   data: PCDData,
@@ -293,39 +293,36 @@ export function normalizePCDData(
 ): PCDData {
   const { positions, count } = data;
 
-  // 计算包围盒
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
+  // 计算质心
+  let sumX = 0, sumY = 0, sumZ = 0;
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
-    minX = Math.min(minX, positions[i3]);
-    minY = Math.min(minY, positions[i3 + 1]);
-    minZ = Math.min(minZ, positions[i3 + 2]);
-    maxX = Math.max(maxX, positions[i3]);
-    maxY = Math.max(maxY, positions[i3 + 1]);
-    maxZ = Math.max(maxZ, positions[i3 + 2]);
+    sumX += positions[i3];
+    sumY += positions[i3 + 1];
+    sumZ += positions[i3 + 2];
+  }
+  const cx = sumX / count;
+  const cy = sumY / count;
+  const cz = sumZ / count;
+
+  // 计算最大欧几里得距离
+  let maxR = 0;
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    const dx = positions[i3] - cx;
+    const dy = positions[i3 + 1] - cy;
+    const dz = positions[i3 + 2] - cz;
+    const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (r > maxR) maxR = r;
   }
 
-  console.log("[PCD Normalizer] 原始包围盒:", {
-    x: [minX.toFixed(2), maxX.toFixed(2)],
-    y: [minY.toFixed(2), maxY.toFixed(2)],
-    z: [minZ.toFixed(2), maxZ.toFixed(2)],
-  });
+  const scale = maxR > 0 ? targetRadius / maxR : 1;
 
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  const cz = (minZ + maxZ) / 2;
-  const dx = maxX - minX;
-  const dy = maxY - minY;
-  const dz = maxZ - minZ;
-  const maxDim = Math.max(dx, dy, dz);
-  const scale = maxDim > 0 ? (targetRadius * 2) / maxDim : 1;
-
-  console.log("[PCD Normalizer] 归一化参数:", {
+  console.log("[PCD Normalizer]", {
+    count,
     center: [cx.toFixed(2), cy.toFixed(2), cz.toFixed(2)],
-    maxDim: maxDim.toFixed(2),
-    scale: scale.toFixed(4),
+    maxRadius: maxR.toFixed(2),
+    scale: scale.toFixed(6),
     targetRadius,
   });
 
@@ -337,27 +334,62 @@ export function normalizePCDData(
     normalized[i3 + 2] = (positions[i3 + 2] - cz) * scale;
   }
 
-  // 验证归一化后的范围
-  let nMinX = Infinity, nMinY = Infinity, nMinZ = Infinity;
-  let nMaxX = -Infinity, nMaxY = -Infinity, nMaxZ = -Infinity;
-  for (let i = 0; i < count; i++) {
-    const i3 = i * 3;
-    nMinX = Math.min(nMinX, normalized[i3]);
-    nMinY = Math.min(nMinY, normalized[i3 + 1]);
-    nMinZ = Math.min(nMinZ, normalized[i3 + 2]);
-    nMaxX = Math.max(nMaxX, normalized[i3]);
-    nMaxY = Math.max(nMaxY, normalized[i3 + 1]);
-    nMaxZ = Math.max(nMaxZ, normalized[i3 + 2]);
-  }
-
-  console.log("[PCD Normalizer] 归一化后包围盒:", {
-    x: [nMinX.toFixed(2), nMaxX.toFixed(2)],
-    y: [nMinY.toFixed(2), nMaxY.toFixed(2)],
-    z: [nMinZ.toFixed(2), nMaxZ.toFixed(2)],
-  });
-
   return {
     ...data,
     positions: normalized,
   };
+}
+
+/**
+ * 加载原始二进制 .bin 点云文件（raw Float32 XYZ，无头部）
+ * 文件格式：连续的 Float32 值 [x0,y0,z0, x1,y1,z1, ...]
+ */
+export async function loadBin(
+  url: string,
+  onProgress?: ProgressCallback,
+  signal?: AbortSignal
+): Promise<PCDData> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load bin file: ${response.status} ${response.statusText}`);
+  }
+
+  const contentLength = response.headers.get("content-length");
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+  if (onProgress && total > 0) {
+    // Stream with progress
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Failed to get response reader");
+
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      chunks.push(value);
+      loaded += value.length;
+      onProgress(loaded, total);
+    }
+
+    const buffer = new ArrayBuffer(loaded);
+    const uint8 = new Uint8Array(buffer);
+    let offset = 0;
+    for (const chunk of chunks) {
+      uint8.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    const positions = new Float32Array(buffer);
+    return { positions, colors: null, normals: null, count: positions.length / 3 };
+  }
+
+  // Simple path without progress
+  const buffer = await response.arrayBuffer();
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const positions = new Float32Array(buffer);
+  if (onProgress) onProgress(buffer.byteLength, buffer.byteLength);
+  return { positions, colors: null, normals: null, count: positions.length / 3 };
 }
