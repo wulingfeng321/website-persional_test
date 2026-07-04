@@ -3,6 +3,8 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 
+export const dynamic = "force-dynamic";
+
 const DATA_FILE = join(process.cwd(), "data", "visits.json");
 
 interface VisitRecord {

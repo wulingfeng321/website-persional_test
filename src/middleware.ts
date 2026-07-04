@@ -7,9 +7,14 @@ export function middleware(request: NextRequest) {
     request.headers.get("x-real-ip") ||
     "unknown";
 
-  const response = NextResponse.next();
-  response.headers.set("x-visitor-ip", ip);
-  return response;
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-visitor-ip", ip);
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {
