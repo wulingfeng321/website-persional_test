@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import PointCloudBackground from "@/components/PointCloudBackground";
+import VisitTracker from "@/components/VisitTracker";
 import { PointCloudSettingsProvider } from "@/lib/PointCloudSettingsContext";
 import { PointCloudDataProvider } from "@/lib/PointCloudDataContext";
 
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="relative min-h-screen">
+        <VisitTracker />
         <PointCloudDataProvider>
           <PointCloudSettingsProvider>
             <div className="fixed inset-0 z-0">
